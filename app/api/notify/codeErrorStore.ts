@@ -1,38 +1,36 @@
 // Хранилище для флагов ошибок кода
 const codeErrorFlags = new Map<string, boolean>();
 
-export function setCodeErrorFlag(ip: string, hasError: boolean) {
-  console.log('Setting code error flag for IP:', ip, 'value:', hasError);
-  // Нормализуем IP адрес
-  const normalizedIp = normalizeIp(ip);
-  codeErrorFlags.set(normalizedIp, hasError);
+export function setCodeErrorFlag(userAgent: string, hasError: boolean) {
+  console.log('Setting code error flag for User Agent:', userAgent, 'value:', hasError);
+  // Нормализуем User Agent
+  const normalizedUserAgent = normalizeUserAgent(userAgent);
+  codeErrorFlags.set(normalizedUserAgent, hasError);
   console.log('Current flags:', Object.fromEntries(codeErrorFlags));
 }
 
-export function getCodeErrorFlag(ip: string): boolean {
-  // Нормализуем IP адрес
-  const normalizedIp = normalizeIp(ip);
-  const hasError = codeErrorFlags.get(normalizedIp) || false;
-  console.log('Getting code error flag for IP', normalizedIp, ':', hasError);
+export function getCodeErrorFlag(userAgent: string): boolean {
+  // Нормализуем User Agent
+  const normalizedUserAgent = normalizeUserAgent(userAgent);
+  const hasError = codeErrorFlags.get(normalizedUserAgent) || false;
+  console.log('Getting code error flag for User Agent', normalizedUserAgent, ':', hasError);
   return hasError;
 }
 
-// Функция для нормализации IP адреса
-function normalizeIp(ip: string): string {
-  // Если это localhost или IPv6 localhost, возвращаем 'localhost'
-  if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') {
-    return 'localhost';
+// Функция для нормализации User Agent
+function normalizeUserAgent(userAgent: string): string {
+  if (!userAgent || userAgent === 'Unknown') {
+    return 'Unknown';
   }
-  
-  // Удаляем IPv6 префикс если есть
-  return ip.replace(/^::ffff:/, '');
+  // Удаляем версии браузеров и оставляем только основную информацию
+  return userAgent.replace(/\d+\.\d+(\.\d+)?/g, '').trim();
 }
 
 // Функция для очистки флага ошибки
-export function clearCodeErrorFlag(ip: string) {
-  const normalizedIp = normalizeIp(ip);
-  console.log('Clearing code error flag for IP:', normalizedIp);
-  codeErrorFlags.delete(normalizedIp);
+export function clearCodeErrorFlag(userAgent: string) {
+  const normalizedUserAgent = normalizeUserAgent(userAgent);
+  console.log('Clearing code error flag for User Agent:', normalizedUserAgent);
+  codeErrorFlags.delete(normalizedUserAgent);
 }
 
 // Очистка старых флагов каждые 5 минут
