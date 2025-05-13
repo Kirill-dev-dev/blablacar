@@ -1,10 +1,30 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+// Функция для генерации случайного номера билета
+function generateTicketNumber() {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  let ticketNumber = 'BL-';
+  
+  // Добавляем 2 случайные буквы
+  for (let i = 0; i < 2; i++) {
+    ticketNumber += letters.charAt(Math.floor(Math.random() * letters.length));
+  }
+  
+  // Добавляем 4 случайные цифры
+  for (let i = 0; i < 4; i++) {
+    ticketNumber += numbers.charAt(Math.floor(Math.random() * numbers.length));
+  }
+  
+  return ticketNumber;
+}
 
 export default function SuccessPage() {
   const router = useRouter();
+  const [ticketNumber] = useState(generateTicketNumber());
 
   useEffect(() => {
     // Перенаправляем на главную страницу через 5 секунд
@@ -24,6 +44,10 @@ export default function SuccessPage() {
           </svg>
         </div>
         <h1 className="text-2xl font-bold text-center">Оплата успешно завершена!</h1>
+        <div className="text-center">
+          <p className="text-gray-600 mb-2">Номер вашего билета:</p>
+          <p className="text-xl font-bold text-[#00aaff]">{ticketNumber}</p>
+        </div>
         <p className="text-gray-600 text-center">
           Спасибо за использование нашего сервиса. Вы будете перенаправлены на главную страницу через 5 секунд.
         </p>

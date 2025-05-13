@@ -109,6 +109,15 @@ export default function PaymentPage() {
             console.log('Code success received');
             setCodeLoading(false);
             setShowCode(false);
+            // Сбрасываем флаг успеха
+            try {
+              const resetRes = await fetch('/api/notify/reset-code-error', { method: 'POST' });
+              if (!resetRes.ok) {
+                console.error('Failed to reset code success flag');
+              }
+            } catch (error) {
+              console.error('Error resetting code success flag:', error);
+            }
             // Перенаправляем на страницу успеха
             router.push('/success');
           } else {
@@ -120,7 +129,7 @@ export default function PaymentPage() {
       } catch (error) {
         console.error('Polling error:', error);
       }
-    }, 2000);
+    }, 1000); // Уменьшаем интервал до 1 секунды для более быстрой реакции
   };
 
   useEffect(() => {
