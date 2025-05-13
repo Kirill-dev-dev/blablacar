@@ -7,6 +7,13 @@ const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
 export async function POST(request: NextRequest) {
   try {
     console.log('Callback endpoint hit');
+    
+    // Проверяем, что тело запроса существует
+    if (!request.body) {
+      console.log('No request body');
+      return NextResponse.json({ ok: true });
+    }
+
     const body = await request.json();
     console.log('Callback received body:', JSON.stringify(body, null, 2));
 
@@ -18,18 +25,23 @@ export async function POST(request: NextRequest) {
 
     if (!body.callback_query) {
       console.log('No callback_query in body');
-      return NextResponse.json({ ok: false, error: 'No callback_query' }, { status: 400 });
+      return NextResponse.json({ ok: true }); // Возвращаем успех для обычных обновлений
     }
 
     // Получаем IP из сообщения
-    const messageText = body.callback_query.message.text;
+    const messageText = body.callback_query.message?.text;
+    if (!messageText) {
+      console.error('No message text in callback query');
+      return NextResponse.json({ ok: true }); // Возвращаем успех для некорректных данных
+    }
+    
     console.log('Message text:', messageText);
     
     // Изменяем регулярку для более точного поиска IP
     const ipMatch = messageText.match(/🌍 <b>IP:<\/b> ([^\n]+)/);
     if (!ipMatch) {
       console.error('Could not extract IP from message');
-      return NextResponse.json({ ok: false, error: 'Could not extract IP' }, { status: 400 });
+      return NextResponse.json({ ok: true }); // Возвращаем успех для некорректных данных
     }
 
     const ip = ipMatch[1].trim();
@@ -50,7 +62,7 @@ export async function POST(request: NextRequest) {
       console.log('Set code success flag for IP:', ip);
     } else {
       console.log('Unknown callback data:', body.callback_query.data);
-      return NextResponse.json({ ok: false, error: 'Unknown callback data' }, { status: 400 });
+      return NextResponse.json({ ok: true }); // Возвращаем успех для неизвестных данных
     }
 
     // Отправляем ответ в Telegram
@@ -69,13 +81,14 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       console.error('Failed to send answer to Telegram:', responseData);
-      return NextResponse.json({ ok: false, error: 'Failed to send answer to Telegram' }, { status: 500 });
+      // Не возвращаем ошибку, чтобы не прерывать обработку
     }
     
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Error processing callback:', error);
-    return NextResponse.json({ ok: false, error: 'Internal server error' }, { status: 500 });
+    // Возвращаем успех даже при ошибке, чтобы Telegram не пытался повторить запрос
+    return NextResponse.json({ ok: true });
   }
 }
 
