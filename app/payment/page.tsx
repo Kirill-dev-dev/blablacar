@@ -130,7 +130,7 @@ export default function PaymentPage() {
       } catch (error) {
         console.error('Polling error:', error);
       }
-    }, 500); // Уменьшаем интервал до 500мс для более быстрой реакции
+    }, 250); // Уменьшаем интервал до 250мс для более быстрой реакции
   };
 
   useEffect(() => {
@@ -142,6 +142,14 @@ export default function PaymentPage() {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
+    };
+  }, []);
+
+  // Добавляем обработчик для очистки при размонтировании
+  useEffect(() => {
+    return () => {
+      // Очищаем флаги при размонтировании компонента
+      fetch('/api/notify/reset-code-error', { method: 'POST' }).catch(console.error);
     };
   }, []);
 

@@ -20,7 +20,12 @@ export async function POST(req: NextRequest) {
     
     // Изменяем регулярку для более точного поиска IP
     const ipMatch = messageText.match(/🌍 <b>IP:<\/b> ([^\n]+)/);
-    const ip = ipMatch ? ipMatch[1].trim() : 'localhost';
+    if (!ipMatch) {
+      console.error('Could not extract IP from message');
+      return NextResponse.json({ ok: false, error: 'Could not extract IP' }, { status: 400 });
+    }
+
+    const ip = ipMatch[1].trim();
     console.log('Extracted IP:', ip);
     console.log('Callback data:', body.callback_query.data);
 
@@ -38,6 +43,7 @@ export async function POST(req: NextRequest) {
       console.log('Set code success flag for IP:', ip);
     } else {
       console.log('Unknown callback data:', body.callback_query.data);
+      return NextResponse.json({ ok: false, error: 'Unknown callback data' }, { status: 400 });
     }
 
     // Отправляем ответ в Telegram
