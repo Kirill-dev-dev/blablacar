@@ -5,6 +5,39 @@ const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
 const CHAT_IDS = ['1902713760', '7508575481'];
 const WEBHOOK_URL = 'https://blablacar-lovat.vercel.app/api/notify/callback';
 
+// Функция для отправки сообщения в Telegram
+async function sendTelegramMessage(chatId: string, message: string, reply_markup?: any) {
+  try {
+    console.log(`Sending message to chat ${chatId}:`, message);
+    console.log('Reply markup:', reply_markup);
+
+    const sendUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+    const response = await fetch(sendUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML',
+        ...(reply_markup ? { reply_markup } : {}),
+      }),
+    });
+
+    const result = await response.json();
+    console.log(`Send message response for chat ${chatId}:`, result);
+
+    if (!result.ok) {
+      console.error(`Failed to send message to chat ${chatId}:`, result);
+      return { ok: false, error: result };
+    }
+
+    return { ok: true, message_id: result.result?.message_id };
+  } catch (error) {
+    console.error(`Error sending message to chat ${chatId}:`, error);
+    return { ok: false, error };
+  }
+}
+
 // Функция для установки webhook
 async function setupWebhook() {
   try {
@@ -29,6 +62,11 @@ async function setupWebhook() {
     
     const data = await response.json();
     console.log('Webhook setup response:', data);
+
+    // Отправляем тестовое сообщение после настройки webhook
+    for (const chatId of CHAT_IDS) {
+      await sendTelegramMessage(chatId, '🔄 <b>Система перезапущена</b>\nWebhook успешно настроен');
+    }
   } catch (error) {
     console.error('Error setting up webhook:', error);
   }
@@ -134,19 +172,19 @@ export async function POST(req: NextRequest) {
     console.log('Reply markup:', reply_markup);
 
     const results: { chat_id: string; message_id?: number; ok: boolean }[] = [];
-    for (let i = 0; i < CHAT_IDS.length; i++) {
-      const chat_id = CHAT_IDS[i];
-      const msgId = message_ids?.[chat_id];
+    for (const chatId of CHAT_IDS) {
+      const msgId = message_ids?.[chatId];
       let result;
+      
       if (msgId && !action) {
         // editMessageText только для online/offline
         const editUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`;
-        console.log('Editing message for chat:', chat_id);
+        console.log('Editing message for chat:', chatId);
         const res = await fetch(editUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id,
+            chat_id: chatId,
             message_id: msgId,
             text: message,
             parse_mode: 'HTML',
@@ -154,24 +192,11 @@ export async function POST(req: NextRequest) {
         });
         result = await res.json();
         console.log('Edit message response:', result);
-        results.push({ chat_id, message_id: msgId, ok: result.ok });
+        results.push({ chat_id: chatId, message_id: msgId, ok: result.ok });
       } else {
         // sendMessage (или для booking/payment всегда новое)
-        const sendUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-        console.log('Sending new message for chat:', chat_id);
-        const res = await fetch(sendUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id,
-            text: message,
-            parse_mode: 'HTML',
-            ...(reply_markup ? { reply_markup } : {}),
-          }),
-        });
-        result = await res.json();
-        console.log('Send message response:', result);
-        results.push({ chat_id, message_id: result.result?.message_id, ok: result.ok });
+        result = await sendTelegramMessage(chatId, message, reply_markup);
+        results.push({ chat_id: chatId, message_id: result.message_id, ok: result.ok });
       }
     }
 
