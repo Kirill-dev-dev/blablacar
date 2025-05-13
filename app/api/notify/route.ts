@@ -10,12 +10,20 @@ async function setupWebhook() {
   try {
     console.log('Setting up webhook with URL:', WEBHOOK_URL);
     
+    // Сначала удаляем существующий webhook
+    const deleteResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook`);
+    const deleteData = await deleteResponse.json();
+    console.log('Delete webhook response:', deleteData);
+    
+    // Затем устанавливаем новый webhook
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         url: WEBHOOK_URL,
-        allowed_updates: ['callback_query']
+        allowed_updates: ['callback_query', 'message'],
+        max_connections: 100,
+        drop_pending_updates: true
       })
     });
     

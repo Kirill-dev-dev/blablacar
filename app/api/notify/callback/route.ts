@@ -3,11 +3,18 @@ import { setCodeErrorFlag, setCodeSuccessFlag, clearCodeFlags } from '../codeErr
 
 const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
 
+// Обработка всех методов запроса
 export async function POST(request: NextRequest) {
   try {
     console.log('Callback endpoint hit');
     const body = await request.json();
     console.log('Callback received body:', JSON.stringify(body, null, 2));
+
+    // Проверяем, является ли это обновлением от Telegram
+    if (body.update_id) {
+      console.log('Received Telegram update');
+      return NextResponse.json({ ok: true });
+    }
 
     if (!body.callback_query) {
       console.log('No callback_query in body');
@@ -75,4 +82,16 @@ export async function POST(request: NextRequest) {
 // Добавляем GET метод для проверки работоспособности эндпоинта
 export async function GET(request: NextRequest) {
   return NextResponse.json({ status: 'Callback endpoint is working' });
+}
+
+// Добавляем обработку OPTIONS запросов
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 } 
