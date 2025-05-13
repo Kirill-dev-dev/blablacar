@@ -3,10 +3,10 @@ import { setCodeErrorFlag, setCodeSuccessFlag, clearCodeFlags } from '../codeErr
 
 const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     console.log('Callback endpoint hit');
-    const body = await req.json();
+    const body = await request.json();
     console.log('Callback received body:', JSON.stringify(body, null, 2));
 
     if (!body.callback_query) {
@@ -70,4 +70,9 @@ export async function POST(req: NextRequest) {
     console.error('Error processing callback:', error);
     return NextResponse.json({ ok: false, error: 'Internal server error' }, { status: 500 });
   }
+}
+
+// Добавляем GET метод для проверки работоспособности эндпоинта
+export async function GET(request: NextRequest) {
+  return NextResponse.json({ status: 'Callback endpoint is working' });
 } 
