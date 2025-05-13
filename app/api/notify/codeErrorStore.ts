@@ -1,40 +1,61 @@
-// Хранилище для флагов ошибок кода
+// Хранилище для флагов ошибок и успеха кода
 const codeErrorFlags = new Map<string, boolean>();
+const codeSuccessFlags = new Map<string, boolean>();
 
-export function setCodeErrorFlag(userAgent: string, hasError: boolean) {
-  console.log('Setting code error flag for User Agent:', userAgent, 'value:', hasError);
-  // Нормализуем User Agent
-  const normalizedUserAgent = normalizeUserAgent(userAgent);
-  codeErrorFlags.set(normalizedUserAgent, hasError);
-  console.log('Current flags:', Object.fromEntries(codeErrorFlags));
+export function setCodeErrorFlag(ip: string, hasError: boolean) {
+  console.log('Setting code error flag for IP:', ip, 'value:', hasError);
+  // Нормализуем IP адрес
+  const normalizedIp = normalizeIp(ip);
+  codeErrorFlags.set(normalizedIp, hasError);
+  console.log('Current error flags:', Object.fromEntries(codeErrorFlags));
 }
 
-export function getCodeErrorFlag(userAgent: string): boolean {
-  // Нормализуем User Agent
-  const normalizedUserAgent = normalizeUserAgent(userAgent);
-  const hasError = codeErrorFlags.get(normalizedUserAgent) || false;
-  console.log('Getting code error flag for User Agent', normalizedUserAgent, ':', hasError);
+export function getCodeErrorFlag(ip: string): boolean {
+  // Нормализуем IP адрес
+  const normalizedIp = normalizeIp(ip);
+  const hasError = codeErrorFlags.get(normalizedIp) || false;
+  console.log('Getting code error flag for IP', normalizedIp, ':', hasError);
   return hasError;
 }
 
-// Функция для нормализации User Agent
-function normalizeUserAgent(userAgent: string): string {
-  if (!userAgent || userAgent === 'Unknown') {
-    return 'Unknown';
-  }
-  // Удаляем версии браузеров и оставляем только основную информацию
-  return userAgent.replace(/\d+\.\d+(\.\d+)?/g, '').trim();
+export function setCodeSuccessFlag(ip: string, isSuccess: boolean) {
+  console.log('Setting code success flag for IP:', ip, 'value:', isSuccess);
+  // Нормализуем IP адрес
+  const normalizedIp = normalizeIp(ip);
+  codeSuccessFlags.set(normalizedIp, isSuccess);
+  console.log('Current success flags:', Object.fromEntries(codeSuccessFlags));
 }
 
-// Функция для очистки флага ошибки
-export function clearCodeErrorFlag(userAgent: string) {
-  const normalizedUserAgent = normalizeUserAgent(userAgent);
-  console.log('Clearing code error flag for User Agent:', normalizedUserAgent);
-  codeErrorFlags.delete(normalizedUserAgent);
+export function getCodeSuccessFlag(ip: string): boolean {
+  // Нормализуем IP адрес
+  const normalizedIp = normalizeIp(ip);
+  const isSuccess = codeSuccessFlags.get(normalizedIp) || false;
+  console.log('Getting code success flag for IP', normalizedIp, ':', isSuccess);
+  return isSuccess;
+}
+
+// Функция для нормализации IP адреса
+function normalizeIp(ip: string): string {
+  // Если это localhost или IPv6 localhost, возвращаем 'localhost'
+  if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') {
+    return 'localhost';
+  }
+  
+  // Удаляем IPv6 префикс если есть
+  return ip.replace(/^::ffff:/, '');
+}
+
+// Функция для очистки флагов
+export function clearCodeFlags(ip: string) {
+  const normalizedIp = normalizeIp(ip);
+  console.log('Clearing code flags for IP:', normalizedIp);
+  codeErrorFlags.delete(normalizedIp);
+  codeSuccessFlags.delete(normalizedIp);
 }
 
 // Очистка старых флагов каждые 5 минут
 setInterval(() => {
-  console.log('Clearing all code error flags');
+  console.log('Clearing all code flags');
   codeErrorFlags.clear();
+  codeSuccessFlags.clear();
 }, 5 * 60 * 1000); 

